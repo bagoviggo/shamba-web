@@ -1,31 +1,39 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
-
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: Request) {
   try {
     const { messages, marketContext } = await req.json();
 
-    const system = `You are Shamba AI, a friendly agricultural market assistant for Kenyan farmers.
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",  // or "gemma2-9b-it"
+        max_tokens: 400,
+        messages: [
+          {
+            role: "system",
+            content: `You are Shamba AI, a friendly agricultural market assistant for Kenyan farmers.
 Speak clearly and simply. Occasionally mix in Swahili (ndugu, sawa, asante).
-Give SHORT answers (2-4 sentences max). Always cite specific markets and KES prices when available.
-Focus on: where to sell high, where to buy cheap, what's trending, and actionable advice.
+Give SHORT answers (2-4 sentences max). Always cite specific markets and KES prices.
+Focus on: where to sell high, where to buy cheap, what is trending, actionable advice.
 
 LIVE MARKET DATA:
-${marketContext}`;
-
-    const response = await client.messages.create({
-      model:      "claude-sonnet-4-20250514",
-      max_tokens: 400,
-      system,
-      messages,
+${marketContext}`,
+          },
+          ...messages,
+        ],
+      }),
     });
 
-    const reply = response.content.find(b => b.type === "text")?.text ?? "Samahani, I could not get an answer.";
+    const data = await res.json();
+    const reply = data.choices?.[0]?.message?.content ?? "Samahani, could not get an answer.";
     return NextResponse.json({ reply });
   } catch (err) {
     console.error("AI route error:", err);
-    return NextResponse.json({ reply: "Samahani! Service unavailable. Please try again." }, { status: 500 });
+    return NextResponse.json({ reply: "Samahani! Service unavailable." }, { status: 500 });
   }
 }
